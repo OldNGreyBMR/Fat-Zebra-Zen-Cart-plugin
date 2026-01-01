@@ -1,7 +1,14 @@
+Fat Zebra ZenCart Plugin v2.0
+=============================
+2026-01-01
+Upgraded to be compatible with Zen Cart 2.1.0 and 2.2.0 with PHP 8.1 to PHP 8.4
+Upgraded by OldNGrey BMH
+
+upgraded from:
+--------------
 
 Fat Zebra ZenCart Plugin v1.1
 =============================
-
 Compatible with Zen Cart 1.5.0 (and presumably above)
 
 Developed by Matthew Savage - Fat Zebra
@@ -40,10 +47,11 @@ Files
 
 * includes/modules/payment/fatzebra.php
 * includes/languages/english/modules/payment/fatzebra.php
+** includes/languages/english/modules/payment/lang.fatzebra.php
 
 Requirements
 ------------
-
+** PHP 8.1 as miniumum level to PHP 8.4
 * An SSL certificate configured for your website
 * cURL with SSL support compiled into PHP
 * A Fat Zebra account (and of course, an Internet Merchant Facility setup for this account)
@@ -62,3 +70,4 @@ Release Notes
 -------------
 1.0 - Initial Release
 1.1 - Fixed bug with checkout not handling declined cards properly
+2.0 - Upgraded for ZenCart V2.1.0 and 2.2.0 and PHP 8.1 to PHP 8.4. Included some improved checking and Admin information bases on the SecurePay API in Zen Cart plugins (https://www.zen-cart.com/downloads.php?do=file&id=2144) or GitHub (https://github.com/OldNGreyBMR/securepay-xml)
