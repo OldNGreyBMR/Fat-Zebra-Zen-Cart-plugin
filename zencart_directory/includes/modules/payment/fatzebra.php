@@ -13,28 +13,84 @@
   *
   * Patches, pull requests, issues, comments and suggestions always welcome.
   */
+  // BMH upgrade for ZC 2.2.0 2026-01-01
+  if (!defined('VERSION_FATZEBRA')) {     define('VERSION_FATZEBRA', '2.0.0'); }
+
+  // BMH check which zc version and preload language files if required.
+// Language files may be required if this module is called directly eg from edit _orders
+if (!defined('MODULE_PAYMENT_FATZEBRA_TEXT_ADMIN_TITLE')) {
+    $filename = "fatzebra.php";
+    $folder = "/modules/payment/";  // end with slash
+    $old_langfile = DIR_FS_CATALOG . DIR_WS_LANGUAGES . $_SESSION['language'] . $folder .  $filename;
+    $new_langfile =  DIR_WS_LANGUAGES . $_SESSION['language'] . $folder .  "lang." . $filename;
+
+    if (file_exists($new_langfile)) {
+        global $languageLoader;
+
+        $languageLoader->loadExtraLanguageFiles(DIR_FS_CATALOG . DIR_WS_LANGUAGES,  $_SESSION['language'], $folder . $filename);
+    } else if (file_exists($old_langfile)) {
+
+        $tpl_old_langfile = DIR_WS_LANGUAGES . $_SESSION['language'] . $folder .  $template_dir . '/' . $filename;
+        if (file_exists($tpl_old_langfile)) {
+            $old_langfile = $tpl_old_langfile;
+        }
+        include_once ($old_langfile);
+    }
+}
   class FatZebra {
-    var $code, $title, $description, $enabled;
+    //var $code, $title, $description, $enabled;
+    public $auth_id;
+    public $cc_card_type; 
+	public $cc_card_number; 
+	public $cc_expiry_month; 
+	public $cc_expiry_year; 
+    public $cc_cvv;
+    public $code; 
+    public $description;
+    public $enabled;
+    public $form_action_url;
+    public $order_status;
+    public $sort_order;
+    public $title; 
+    public $transaction_id;
+    private $_check;
 
     // class constructor
-    function FatZebra() {
-      global $order,$db;
+    //function FatZebra() {
+    function __construct() {
+      global $order, $messageStack;
 
       $this->code = 'fatzebra';
-      $this->description = MODULE_PAYMENT_FATZEBRA_TEXT_DESCRIPTION;
+      $this->enabled = (defined('MODULE_PAYMENT_FATZEBRA_ENABLED') && MODULE_PAYMENT_FATZEBRA_ENABLED == 'True') ;
+      //    $this->enabled = (defined('MODULE_PAYMENT_PAYPAL_STATUS') && MODULE_PAYMENT_PAYPAL_STATUS == 'True');
+      // $this->sort_order = defined('MODULE_PAYMENT_PAYPAL_SORT_ORDER') ? MODULE_PAYMENT_PAYPAL_SORT_ORDER : null;
+        if (IS_ADMIN_FLAG === true)
+        {
+            $this->title = MODULE_PAYMENT_FATZEBRA_TEXT_ADMIN_TITLE; // Payment module title in Admin
+            $this->description = 'V' . VERSION_FATZEBRA . ' ' . MODULE_PAYMENT_FATZEBRA_TEXT_DESCRIPTION; // show version in admin panel
+
+            if ($this->enabled && !function_exists('curl_init'))
+            {
+                $messageStack->add_session(MODULE_PAYMENT_FATZEBRA_TEXT_ERROR_CURL_NOT_FOUND, 'error');
+            }
+        } else {
+            $this->title = MODULE_PAYMENT_FATZEBRA_TEXT_CATALOG_TITLE; // Payment module title in Catalog
+        }
+     // $this->description = MODULE_PAYMENT_FATZEBRA_TEXT_DESCRIPTION;
       
+      /* 
       if ($_GET['main_page'] != '') {
         $this->title = MODULE_PAYMENT_FATZEBRA_TEXT_CATALOG_TITLE;
       } else {
         $this->title = MODULE_PAYMENT_FATZEBRA_TEXT_ADMIN_TITLE;
-      }
+      } */
       
       // Whether the module is installed or not
-      $this->enabled = (MODULE_PAYMENT_FATZEBRA_ENABLED == 'True');
-      $this->sort_order = MODULE_PAYMENT_FATZEBRA_SORT_ORDER;
+      // $this->enabled = (MODULE_PAYMENT_FATZEBRA_ENABLED == 'True');
+      $this->sort_order = defined('MODULE_PAYMENT_FATZEBRA_SORT_ORDER') ? MODULE_PAYMENT_FATZEBRA_SORT_ORDER : null;
       $this->form_action_url = zen_href_link(FILENAME_CHECKOUT_PROCESS, '', 'SSL', false);
 
-      if ((int)MODULE_PAYMENT_FATZEBRA_ORDER_STATUS_ID > 0) {
+        if ( (defined('MODULE_PAYMENT_FATZEBRA_ORDER_STATUS_ID')) && (MODULE_PAYMENT_FATZEBRA_ORDER_STATUS_ID > 0)    ) {
           $this->order_status = MODULE_PAYMENT_FATZEBRA_ORDER_STATUS_ID;
       }
 
@@ -94,12 +150,14 @@
     function selection() {
       global $order;
       for ($i=1; $i<13; $i++) {
-        $expires_month[] = array('id' => sprintf('%02d', $i), 'text' => strftime('%B',mktime(0,0,0,$i,1,2000)));
+       // BMH $expires_month[] = array('id' => sprintf('%02d', $i), 'text' => strftime('%B',mktime(0,0,0,$i,1,2000)));
+        $expires_month[] = array('id' => sprintf('%02d', $i), 'text' => date('F - (m)',mktime(0,0,0,$i,1,2000)));
       }
 
       $today = getdate();
       for ($i=$today['year']; $i < $today['year']+10; $i++) {
-        $expires_year[] = array('id' => strftime('%y',mktime(0,0,0,1,1,$i)), 'text' => strftime('%Y',mktime(0,0,0,1,1,$i)));
+        // BMH $expires_year[] = array('id' => strftime('%y',mktime(0,0,0,1,1,$i)), 'text' => strftime('%Y',mktime(0,0,0,1,1,$i)));
+         $expires_year[] = array('id' => date('y',mktime(0,0,0,1,1,$i)), 'text' => date('Y',mktime(0,0,0,1,1,$i)));
       }
 
       $selection = array('id' => $this->code,
@@ -123,12 +181,13 @@
     // Validate the credit card and store it into the class ivars for use when processing
     function pre_confirmation_check() {
       global $_POST, $messageStack;
+      global $db; // BMH added but not used?
 
       include(DIR_WS_CLASSES . 'cc_validation.php');
 
       $cc_validation = new cc_validation();
       $cc = $_POST['cc'];
-      $result = $cc_validation->validate($cc['number'], $cc['expires_month'], $cc['expires_year']);
+      $result = $cc_validation->validate($cc['number'] ?? '', $cc['expires_month'] ?? '', $cc['expires_year'] ?? '');
       $error = '';
       switch ($result) {
         case -1:
@@ -158,7 +217,7 @@
 
     // Display Credit Card Information on the Checkout Confirmation Page
     function confirmation() {
-      global $_POST;
+      global $_POST, $zcDate;
       $cc = $_POST['cc'];
 
       $confirmation = array('fields' => array(array('title' => MODULE_PAYMENT_FATZEBRA_TEXT_CREDIT_CARD_TYPE,
@@ -168,7 +227,7 @@
                                               array('title' => MODULE_PAYMENT_FATZEBRA_TEXT_CREDIT_CARD_NUMBER,
                                                     'field' => substr($this->cc_card_number, 0, 4) . str_repeat('X', (strlen($this->cc_card_number) - 8)) . substr($this->cc_card_number, -4)),
                                               array('title' => MODULE_PAYMENT_FATZEBRA_TEXT_CREDIT_CARD_EXPIRES,
-                                                    'field' => strftime('%B, %Y', mktime(0,0,0,$cc['expires_month'], 1, '20' . $cc['expires_year']))),
+                                                    'field' => $zcDate->output('%B, %Y', mktime(0,0,0,$cc['expires_month'], 1, '20' . $cc['expires_year']))),
                                               array('title' => MODULE_PAYMENT_FATZEBRA_TEXT_CVV,
                                                     'field' => ($cc['cvv'].''==''?MODULE_PAYMENT_FATZEBRA_TEXT_CVV_OMITTED:str_repeat('X',strlen($cc['cvv']))))
                                               )
@@ -192,7 +251,7 @@
     }
 
     function before_process() {
-      global $db, $order, $messageStack;
+      global $db, $order, $messageStack, $_POST, $_SESSION;
 
       $order->info['cc_number']  = str_pad(substr($temp=$_POST['cc_number'], -4), strlen($temp), 'X', STR_PAD_LEFT);
       $cc_expires_month = $_POST['cc_expires_month'];
@@ -208,7 +267,8 @@
       $new_order_id = ($new_order_id + 1);
       $new_order_id = (string)$new_order_id . '-' . zen_create_random_value(6, 'chars'); // Ensure uniqueness
 
-      $gateway_url = MODULE_PAYMENT_FATZEBRA_SANDBOX == "True" ? "https://gateway.sandbox.fatzebra.com.au/v1.0/purchases" : "https://gateway.fatzebra.com.au/v1.0/purchases"; 
+      // BMH $gateway_url = MODULE_PAYMENT_FATZEBRA_SANDBOX == "True" ? "https://gateway.sandbox.fatzebra.com.au/v1.0/purchases" : "https://gateway.fatzebra.com.au/v1.0/purchases"; 
+      $gateway_url = MODULE_PAYMENT_FATZEBRA_SANDBOX == "True" ? "https://gateway.pmnts-sandbox.io/V1.0/purchases" : "https://gateway.fatzebra.com.au/v1.0/purchases"; 
 
       $params = array("amount" => round($order->info['total']*100),
                       "reference" => $new_order_id,
@@ -236,7 +296,7 @@
         throw new Exception("cURL error: " . curl_error($curl));
       }
 
-      curl_close($curl);
+      // redundant PHP 8.0+ curl_close($curl);
 
       $result =  json_decode($data);
       if (is_null($result)) {
@@ -296,19 +356,22 @@
     }
 
     // Check to see if the module has been installed or not.
-    function check() {
+    function check() 
+    {
       global $db;
 
-      if (!isset($this->_check)) {
-        $check_query = $db->Execute("SELECT configuration_value FROM " . TABLE_CONFIGURATION . " WHERE configuration_key = 'MODULE_PAYMENT_FATZEBRA_ENABLED'");
-        $this->_check = $check_query->RecordCount();
+      if (!isset($this->_check)) 
+        {
+            $check_query = $db->Execute("SELECT configuration_value FROM " . TABLE_CONFIGURATION . " WHERE configuration_key = 'MODULE_PAYMENT_FATZEBRA_ENABLED'");
+            $this->_check = $check_query->RecordCount();
       }
       return $this->_check;
     }
 
     // Install the module configuration defaults
-    function install() {
-      global $db;
+    function install() 
+    {
+        global $db;
 
       $sql = "INSERT INTO " . TABLE_CONFIGURATION . " (configuration_title, configuration_key, configuration_value, configuration_description, configuration_group_id, sort_order, set_function, use_function, date_added) VALUES 
                   ('Enable Fat Zebra Module', 'MODULE_PAYMENT_FATZEBRA_ENABLED', 'True', 'Enable Fat Zebra as a payment method for your site.', '6', '0', 'zen_cfg_select_option(array(\'True\', \'False\'), ', DEFAULT, now()),
@@ -321,6 +384,7 @@
                   ('Set Order Status', 'MODULE_PAYMENT_FATZEBRA_ORDER_STATUS_ID', '0', 'Set the status of orders made with this payment module to this value.', '6', '0', 'zen_cfg_pull_down_order_statuses(', 'zen_get_order_status_name', now());";
       $db->Execute($sql);
     }
+
 
     // Remove the module configuration when uninstalling
     function remove() {
@@ -343,4 +407,3 @@
        'MODULE_PAYMENT_FATZEBRA_ORDER_STATUS_ID');
     }
   }
-?>
