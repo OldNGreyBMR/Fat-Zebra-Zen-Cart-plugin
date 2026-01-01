@@ -1,4 +1,5 @@
 <?php
+// Upgraded BMH 2026-01-01
   // Admin Configuration Items
   define('MODULE_PAYMENT_FATZEBRA_TEXT_ADMIN_TITLE', 'Fat Zebra'); 
   define('MODULE_PAYMENT_FATZEBRA_TEXT_DESCRIPTION', '<a target="_blank" href="https://www.fatzebra.com.au/support/testing">Testing Details</a>');
@@ -18,4 +19,4 @@
   define('MODULE_PAYMENT_FATZEBRA_TEXT_DECLINED_MESSAGE', 'Payment was declined for the following reason:');
   define('MODULE_PAYMENT_FATZEBRA_TEXT_DECLINED_MESSAGE_TRY_AGAIN', 'Please correct your Card information and try again, alternatively contact us or your Card provider if you need assistance.');
   define('MODULE_PAYMENT_FATZEBRA_TEXT_ERROR', 'Credit Card Error!');
-?>
+  define('MODULE_PAYMENT_FATZEBRA_TEXT_ERROR_CURL_NOT_FOUND', 'CURL functions not found - required for FatZebra payment module');
